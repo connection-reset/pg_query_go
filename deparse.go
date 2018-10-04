@@ -753,7 +753,7 @@ func (c DeparseContext) deparseResTarget(node nodes.ResTarget) (string, error) {
 			return "", err
 		}
 		if node.Name != nil {
-			return fmt.Sprintf("%s AS %s", val, *node.Name), nil
+			return fmt.Sprintf(`%s AS "%s"`, val, *node.Name), nil
 		} else {
 			return val, nil
 		}
