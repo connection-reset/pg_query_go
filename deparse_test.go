@@ -302,6 +302,18 @@ var queries = map[string][]Query{
 	        AS (row_cols varchar[], admin int, ordinary int)
 	        `,
 		},
+		{
+			"interval",
+			`SELECT '1 year'::interval`,
+		},
+		{
+			"interval with fields",
+			`SELECT '1 year 2 months 3 days'::interval year to month`,
+		},
+		{
+			"interval with second precision",
+			`SELECT '1.234 seconds'::interval second(1)`,
+		},
 	},
 }
 

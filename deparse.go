@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kr/pretty"
 	nodes "github.com/lfittl/pg_query_go/nodes"
+	"strconv"
 	"strings"
 )
 
@@ -961,6 +962,9 @@ func (c DeparseContext) deparseTypeName(node nodes.TypeName) (string, error) {
 		return "", err
 	}
 	// TODO interval
+	if nameItems[0] == "pg_catalog" && nameItems[1] == "interval" {
+		return c.deparseIntervalType(node)
+	}
 
 	output := []string{}
 	if node.Setof {
@@ -1025,6 +1029,81 @@ func (c DeparseContext) deparseTypeNameCast(names []string, arguments string) (s
 	default:
 		return "", fmt.Errorf("Can't deparse type %s", names[1])
 	}
+}
+
+func (c DeparseContext) deparseIntervalType(node nodes.TypeName) (string, error) {
+	output := []string{"interval"}
+
+	if node.Typmods.Items != nil {
+		//masks := map[int]string{...}
+		//keys := masks.invert()
+		keys := map[string]uint{
+			"RESERV":      0,
+			"MONTH":       1,
+			"YEAR":        2,
+			"DAY":         3,
+			"JULIAN":      4,
+			"TZ":          5,
+			"DTZ":         6,
+			"DYNTZ":       7,
+			"IGNORE_DTF":  8,
+			"AMPM":        9,
+			"HOUR":        10,
+			"MINUTE":      11,
+			"SECOND":      12,
+			"MILLISECOND": 13,
+			"MICROSECOND": 14,
+			"DOY":         15,
+			"DOW":         16,
+			"UNITS":       17,
+			"ADBC":        18,
+			"AGO":         19,
+			"ABS_BEFORE":  20,
+			"ABS_AFTER":   21,
+			"ISODATE":     22,
+			"ISOTIME":     23,
+			"WEEK":        24,
+			"DECADE":      25,
+			"CENTURY":     26,
+			"MILLENNIUM":  27,
+			"DTZMOD":      28,
+		}
+		sqlByMask := map[int][]string{
+			(1 << keys["YEAR"]):                                    []string{"year"},
+			(1 << keys["MONTH"]):                                   []string{"month"},
+			(1 << keys["DAY"]):                                     []string{"day"},
+			(1 << keys["HOUR"]):                                    []string{"hour"},
+			(1 << keys["MINUTE"]):                                  []string{"minute"},
+			(1 << keys["SECOND"]):                                  []string{"second"},
+			(1<<keys["YEAR"] | 1<<keys["MONTH"]):                   []string{"year", "month"},
+			(1<<keys["DAY"] | 1<<keys["HOUR"]):                     []string{"day", "hour"},
+			(1<<keys["DAY"] | 1<<keys["HOUR"] | 1<<keys["MINUTE"]): []string{"day", "minute"},
+			(1<<keys["DAY"] | 1<<keys["HOUR"] | 1<<keys["MINUTE"] | 1<<keys["SECOND"]): []string{"day", "second"},
+			(1<<keys["HOUR"] | 1<<keys["MINUTE"]):                                      []string{"hour", "minute"},
+			(1<<keys["HOUR"] | 1<<keys["MINUTE"] | 1<<keys["SECOND"]):                  []string{"hour", "second"},
+			(1<<keys["MINUTE"] | 1<<keys["SECOND"]):                                    []string{"minute", "second"},
+		}
+
+		typmodItems, err := c.deparseItemList(node.Typmods)
+		if err != nil {
+			return "", err
+		}
+		firstTypmod, err := strconv.Atoi(typmodItems[0])
+		if err != nil {
+			return "", err
+		}
+		interval := []string{}
+		for _, part := range sqlByMask[firstTypmod] {
+			if part == "second" && len(typmodItems) == 2 {
+				interval = append(interval, fmt.Sprintf("second(%s)", typmodItems[1]))
+			} else {
+				interval = append(interval, part)
+			}
+		}
+		output = append(output, strings.Join(interval, " to "))
+	}
+
+	return strings.Join(output, " "), nil
 }
 
 func (c DeparseContext) deparseWithClause(node nodes.WithClause) (string, error) {
